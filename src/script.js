@@ -1,6 +1,11 @@
 const boardElement = document.getElementById("board");
 const statusText = document.getElementById("status");
 const newGameBtn = document.getElementById("new-game-btn");
+const timeSelect = document.getElementById("time-control");
+const whiteClock = document.getElementById("white-clock");
+const blackClock = document.getElementById("black-clock");
+const whiteBar = document.getElementById("white-bar");
+const blackBar = document.getElementById("black-bar");
 
 const symbols = {
   K: "♚",
@@ -16,6 +21,13 @@ let turn;
 let selected;
 let legalMoves;
 let gameOver;
+
+let timeLeft = { w: 0, b: 0 };
+let increment = 0;
+let clockStarted = false;
+let lastTick = 0;
+let timerId = null;
+let moveCount = 0;
 
 function createBoard() {
   return [
@@ -149,8 +161,96 @@ function hasAnyLegalMove(color) {
   return false;
 }
 
+function hasMatingMaterial(color) {
+  let minorPieces = 0;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (piece !== "" && piece[0] === color) {
+        if (piece[1] === "P" || piece[1] === "R" || piece[1] === "Q") return true;
+        if (piece[1] === "N" || piece[1] === "B") minorPieces++;
+      }
+    }
+  }
+  return minorPieces >= 2;
+}
+
 function colorName(color) {
   return color === "w" ? "White" : "Black";
+}
+
+function formatTime(ms) {
+  if (ms <= 0) return "0:00.0";
+
+  if (ms < 10000) {
+    const seconds = Math.floor(ms / 1000);
+    const tenths = Math.floor((ms % 1000) / 100);
+    return "0:0" + seconds + "." + tenths;
+  }
+
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+}
+
+function updateClocks() {
+  whiteClock.textContent = formatTime(timeLeft.w);
+  blackClock.textContent = formatTime(timeLeft.b);
+
+  whiteClock.className = "clock" + (timeLeft.w < 10000 ? " low" : "");
+  blackClock.className = "clock" + (timeLeft.b < 10000 ? " low" : "");
+
+  whiteBar.className = "player-bar bottom" + (!gameOver && turn === "w" ? " active" : "");
+  blackBar.className = "player-bar top" + (!gameOver && turn === "b" ? " active" : "");
+
+  timeSelect.disabled = moveCount > 0 && !gameOver;
+}
+
+function startClock() {
+  lastTick = Date.now();
+  if (timerId === null) {
+    timerId = setInterval(checkTime, 100);
+  }
+}
+
+function stopClock() {
+  if (timerId !== null) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+}
+
+function checkTime() {
+  if (!clockStarted || gameOver) return false;
+
+  const now = Date.now();
+  timeLeft[turn] -= now - lastTick;
+  lastTick = now;
+
+  if (timeLeft[turn] > 0) {
+    updateClocks();
+    return false;
+  }
+
+  timeLeft[turn] = 0;
+  gameOver = true;
+  stopClock();
+  selected = null;
+  legalMoves = [];
+
+  const winner = turn === "w" ? "b" : "w";
+  if (hasMatingMaterial(winner)) {
+    statusText.textContent = "Time's up! " + colorName(winner) + " wins.";
+  }
+  else {
+    statusText.textContent = "Time's up! Draw (not enough material to checkmate).";
+  }
+
+  updateClocks();
+  render();
+  return true;
 }
 
 function updateStatus() {
@@ -175,6 +275,11 @@ function updateStatus() {
 
 function movePiece(fromRow, fromCol, toRow, toCol) {
   const piece = board[fromRow][fromCol];
+  const mover = turn;
+
+  if (clockStarted) {
+    timeLeft[mover] += increment;
+  }
 
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = "";
@@ -186,11 +291,23 @@ function movePiece(fromRow, fromCol, toRow, toCol) {
   selected = null;
   legalMoves = [];
   turn = turn === "w" ? "b" : "w";
+  moveCount++;
   updateStatus();
+
+  if (gameOver) {
+    stopClock();
+  }
+  else if (!clockStarted && mover === "w") {
+    clockStarted = true;
+    startClock();
+  }
+
+  updateClocks();
 }
 
 function onSquareClick(row, col) {
   if (gameOver) return;
+  if (checkTime()) return;
 
   if (selected !== null) {
     const isLegal = legalMoves.some(m => m[0] === row && m[1] === col);
@@ -253,15 +370,27 @@ function render() {
 }
 
 function newGame() {
+  const settings = timeSelect.value.split(",");
+  const startTime = Number(settings[0]) * 1000;
+  increment = Number(settings[1]) * 1000;
+
+  stopClock();
+  clockStarted = false;
+  moveCount = 0;
+  timeLeft = { w: startTime, b: startTime };
+
   board = createBoard();
   turn = "w";
   selected = null;
   legalMoves = [];
   gameOver = false;
+
   updateStatus();
+  updateClocks();
   render();
 }
 
 newGameBtn.addEventListener("click", newGame);
+timeSelect.addEventListener("change", newGame);
 
 newGame();
