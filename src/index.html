@@ -10,9 +10,31 @@
   <main class="container">
     <h1>Chess</h1>
 
+    <div class="controls">
+      <label for="time-control">Time control</label>
+      <select id="time-control">
+        <option value="60,0">1 min</option>
+        <option value="180,0">3 min</option>
+        <option value="180,2">3 | 2</option>
+        <option value="300,0">5 min</option>
+        <option value="600,0" selected>10 min</option>
+        <option value="900,10">15 | 10</option>
+      </select>
+    </div>
+
     <p id="status" class="status"></p>
 
+    <div id="black-bar" class="player-bar top">
+      <span class="player-name">Black</span>
+      <span id="black-clock" class="clock">10:00</span>
+    </div>
+
     <div id="board" class="board"></div>
+
+    <div id="white-bar" class="player-bar bottom">
+      <span class="player-name">White</span>
+      <span id="white-clock" class="clock">10:00</span>
+    </div>
 
     <button id="new-game-btn">New Game</button>
   </main>
